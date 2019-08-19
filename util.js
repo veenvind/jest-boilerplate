@@ -49,6 +49,9 @@ function parseImports(fileContent) {
             importList.push(`import * as ${node.source.value.split('/').pop()} from ${node.source.raw};\n`);
         }
     });
+    if(!fileContent.match(/import (.*) from (.*)\n/)) {
+        return '';
+    }
     return trimMultiLine(fileContent.match(/import (.*) from (.*)\n/g).join(''));
 }
 
@@ -78,7 +81,7 @@ function parseFunctions(fileContent) {
                 raw: fileContent.substring(node.start, node.end),
                 beforeEach: '',
                 afterEach: '',
-                assertion: '',
+                assertions: [],
                 spy: '',
                 branches: branchesCount,
                 globalVars: []
@@ -105,7 +108,7 @@ function createFuncDescTemplate(func) {
     return `
 describe("${func.name}", () => {
 ${indentMultiLine(func.globalVars.join(''))}${indentMultiLine(beforeEach)}${indentMultiLine(afterEach)}
-${func.itList.map(it => createItTemplate(it.name, func.params, func.assertion)).map(temp => indentMultiLine(temp)).join('')}
+${func.itList.map(it => createItTemplate(it.name, [...func.params, ...it.params], func.assertions[it.assertionId || 0])).map(tmpl => indentMultiLine(tmpl)).join('')}
 });\n`
 }
 
@@ -113,7 +116,7 @@ function createItTemplate(name = "should ", params = [], assertion = '') {
     return `it("${name}", () => {
 ${indentMultiLine(params.map(param => (`const ${param} = {};\n`)).join(''))}
 ${indentMultiLine(assertion)}
-});`;
+});\n`;
 }
 
 module.exports = {
