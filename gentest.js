@@ -2,12 +2,15 @@ const parser = require("./parser");
 const util = require("./util/common");
 
 let generateItListFunc;
+let assertions = [];
+let fileObj ;
 
 function createFuncDescTemplate(func) {
-    console.log(func.callees);
     func.itList = (func.itList && func.itList.length) ? func.itList : [{params: []}];
-    const beforeEach = func.beforeEach && `\nbeforeEach(() => {\n${indentMultiLine(func.beforeEach)}\n});\n`;
-    const afterEach = func.afterEach && `\nafterEach(() => {\n${indentMultiLine(func.afterEach)}\n});\n`;
+    assertions[0] = `expect(${fileObj.name}.${func.name}).toEqual()`;
+    
+    const beforeEach = func.beforeEach && `\nbeforeEach(() => {\n${util.indentMultiLine(func.beforeEach)}\n});\n`;
+    const afterEach = func.afterEach && `\nafterEach(() => {\n${util.indentMultiLine(func.afterEach)}\n});\n`;
     const itTemplList = func.itList.map(it => createItTemplate(it, func))
     const funcContent = beforeEach + afterEach + itTemplList;
     return `
@@ -19,7 +22,7 @@ ${util.indentMultiLine(funcContent)}
 function createItTemplate(it, func) {
     const name = it.name || "should ";
     const params = [...it.params, ...func.params];
-    const assertion = '';
+    const assertion = assertions[it.assertionId || 0];
 
     return `it("${name}", () => {
 ${util.indentMultiLine(params.map(param => (`const ${param} = {};\n`)).join(''))}
@@ -30,52 +33,61 @@ ${util.indentMultiLine(assertion)}
 function createModuleDescTemplate(parsedFile) {
     const funcList = parsedFile.funcList
         .map(func => {func.itList = generateItListFunc(func); return func;})
+        .map(func => {
+            const { beforeEach, afterEach} = createBeforeAfterContent(func.callees);
+            func.beforeEach = beforeEach;
+            func.afterEach = afterEach;
+            return func;
+        })
         .map(func => createFuncDescTemplate(func))
         .map(func => util.indentMultiLine(func));
 
-    let importList = parseImports(parsedFile.importList);
+    let importList = generateImports(parsedFile.importList);
 
 return `${importList}
   
-describe("${parsedFile.name}", () => {
+describe("${fileObj.dirName} ${fileObj.name}", () => {
 ${funcList.join('')}
 });`
 }
 
-function parseImports(importList) {
-    return '';
+function generateImports(importList) {
+    importList.push({
+        source: `'./${fileObj.name}'`,
+        specifiers: `* as ${fileObj.name}`
+    })
+    return importList.map(imp => `import ${imp.specifiers} from ${imp.source};`).join('\n');
 }
 
 function createBeforeAfterContent(callees) {
     let beforeEach = '';
     let afterEach = '';
-    callees.map(callee => {
+    callees.filter(callee => callee.object).forEach(callee => {
+        
         if(callee.mockImplementation) {
-            beforeEach += `${callee.property}Spy = jest.spyOn(${callee.object}, "${callee.property}").mockImplementation(() => {});`;
+            beforeEach += `${callee.property}Spy = jest.spyOn(${callee.object}, "${callee.property}").mockImplementation(() => ());`;
         } else {
             beforeEach += `${callee.property}Spy = jest.spyOn(${callee.object}, "${callee.property}");`;
         }
       
         afterEach += `${callee.property}Spy.mockRestore();`;
     })
-    return callees.join('');
+    return {beforeEach, afterEach};
 }
 
 function generateTestFile(pathStr, generateItList, assertions) {
+    fileObj = util.getFileName(pathStr);
     generateItListFunc = generateItList;
     assertions = assertions;
     util.readFile(pathStr)
         .then(parser.parse)
-        // .then(parsedFile => generateItListFunc(parsedFile.funcList))
         .then(createModuleDescTemplate)
-        .then(str => console.log(str));
-    //.then(util.writeTestFile.bind(null, filePath));
+        .then(util.writeTestFile.bind(null, fileObj.fullDir + "/" + fileObj.name + '.test.js'));
 }
 
 module.exports = {
     createFuncDescTemplate,
     createModuleDescTemplate,
     createItTemplate,
-    createBeforeAfterContent,
     generateTestFile
 }

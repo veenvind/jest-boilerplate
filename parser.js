@@ -9,13 +9,11 @@ let funcList = [];
 let importList = [];
 let fileContent = '';
 
-function parse(str) {
-    fileContent = str.data;
-    console.log("parsing");
+function parse(fileObj) {
+    fileContent = fileObj.content;
     AST = Parser.extend(stage3).extend(jsx()).parse(fileContent, {sourceType: "module"});
-    console.log("parsing done");
     walkAST();
-    return { importList, funcList };
+    return { name: fileObj.name, importList, funcList };
 }
 
 function walkAST() {
@@ -29,7 +27,18 @@ function walkAST() {
 }
 
 function parseImport(node) {
-    return node;
+    let specifiers = node.specifiers[0].local.name;
+    if(node.specifiers[0].type === "ImportNamespaceSpecifier") {
+        specifiers = `* as ${node.specifiers[0].local.name}`;
+    } else if(node.specifiers[0].type === "ImportSpecifier"){
+        const ind = []
+        node.specifiers.forEach(spec => ind.push(spec.local.name));
+        specifiers = `{ ${ind.join(', ')} }`;
+    }
+    return {
+        source: node.source.raw,
+        specifiers
+    }
 }
 
 function parseExport(node) {
@@ -59,8 +68,10 @@ function parseCallees(node) {
     walk.full(node, (node, state, type) => {
         if(type === "CallExpression") {
             callees.push({
-                property: node.callee.name,
-                object: node.callee.object
+                property: node.callee.name || node.callee.property.name,
+                object: node.callee.object ? node.callee.object.name : null,
+                args: node.arguments,
+                mockImplementation: true
             });
         }
     });
@@ -68,11 +79,11 @@ function parseCallees(node) {
     return callees;
 }
 
-function parseFunction(node, name) {
+function parseFunction(node, name = '') {
     const branchesCount = countBranches(node);
     func = {
         node: node,
-        name: name || node.id.name,
+        name: (node.id && node.id.name) || name,
         params: node.params.map(param => (param.name || param.left.name)),
         raw: fileContent.substring(node.start, node.end),
         callees: parseCallees(node),
