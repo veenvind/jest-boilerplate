@@ -14,13 +14,12 @@ function getFileName(pathStr) {
     };
 }
 
-function readFile(pathStr) {
-    const filePath = path.resolve(pathStr);
-    const name = path.parse(filePath).dir.split('/').pop() + ' ' + path.parse(filePath).name;
+function readFile(fileObj) {
+
     return new Promise(function(resolve, reject) {
-        fs.readFile(filePath, {encoding: 'utf-8'}, function(err,data){
+        fs.readFile(fileObj.filePath, {encoding: 'utf-8'}, function(err,data){
             if (!err) {
-                resolve({name, content: data});
+                resolve({...fileObj, content: data});
             } else {
                 console.log(err);
                 resolve('');
@@ -39,7 +38,7 @@ function writeTestFile(fileName, content) {
 }
 
 function trimMultiLine(text) {
-    return text.replace(/\n[\ ]+\n/g, "\n\n").replace(/[\ ]+\n/g, "\n");
+    return text.replace(/\n[\ ]+\n/g, "\n\n").replace(/[\ ]+\n/g, "\n").replace(/\n$/, "");
 }
 
 function indentMultiLine(text, indent) {
