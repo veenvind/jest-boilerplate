@@ -13,7 +13,7 @@
     "gentest-actn": "./actions-boilerplate.js"
   },
   "dependencies": {
-    "acorn": "^6.2.1",
+    "acorn": "^6.4.1",
     "acorn-jsx": "^5.0.1",
     "acorn-jsx-walk": "^2.0.0",
     "acorn-stage3": "^2.0.0",
